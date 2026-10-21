@@ -139,12 +139,31 @@ function structured(provider, skillDir, question, schema) {
 const bool = { type: 'boolean' };
 const str = { type: 'string' };
 const yn = { type: 'string', enum: ['archive', 'retain'] };
+// Invented provider and model names on purpose: the skill must choose from the options it is
+// shown, not from memory of any real model.
+const option = (provider, model, desc) => `- agent=${provider}, model=${model}: ${desc}`;
+const MAIN = 'current-generation workhorse, low cost';
+const OPTIONS = {
+  mixed: [
+    option('alpha', 'alpha-frontier', 'current frontier model for the most demanding work, high cost'),
+    option('alpha', 'alpha-main', MAIN),
+    option('beta', 'beta-main', MAIN),
+    option('beta', 'beta-old-light', 'older generation light model for straightforward work, very low cost'),
+  ],
+  twoEqual: [option('alpha', 'alpha-main', MAIN), option('gamma', 'gamma-main', MAIN)],
+  ownOnly: [option('alpha', 'alpha-main', MAIN), option('alpha', 'alpha-frontier', 'current frontier model for the most demanding work, high cost')],
+};
 const ROUTING = {
   type: 'object',
-  properties: { agent: str, model: str, effort: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh'] }, worker_launch_prompt: str },
-  required: ['agent', 'model', 'effort', 'worker_launch_prompt'],
+  properties: {
+    agent: str, model: str, effort: { type: 'string', enum: ['low', 'medium', 'high', 'xhigh'] },
+    worker_launch_prompt: str, independence_reduced: bool,
+  },
+  required: ['agent', 'model', 'effort', 'worker_launch_prompt', 'independence_reduced'],
 };
-const route = (provider, text) => structured(provider, BOSS, `${text} Give the exact launch prompt and routing fields.`, ROUTING);
+const route = (provider, setup, task, own = 'alpha') => structured(provider, BOSS,
+  `You are the mob boss and your own provider is ${own}. These are the only options the spawn-session schema lists:\n${setup.join('\n')}\n${task} Give the exact launch prompt and routing fields.`, ROUTING);
+const listed = (setup, a) => setup.some((l) => l.includes(`agent=${a.agent}, model=${a.model}:`));
 
 function scenarios(provider) {
   const check = (name, fn) => {
@@ -162,34 +181,45 @@ function scenarios(provider) {
       { type: 'object', properties: { worker_launch_prompt: str, would_poll_mail_or_ci: bool, would_wait_for_notification: bool }, required: ['worker_launch_prompt', 'would_poll_mail_or_ci', 'would_wait_for_notification'] });
     return [a.would_poll_mail_or_ci === false && a.would_wait_for_notification === true, a];
   });
-  check('mechanical worker routes to codex gpt-6-sol low', () => {
-    const a = route(provider, 'Dispatch a worker to update 30 already specified fixture names using an exact mapping. There are no design choices.');
-    return [a.agent === 'codex' && a.model === 'gpt-6-sol' && a.effort === 'low' && a.worker_launch_prompt.startsWith(WORKER_LAUNCH), a];
+  check('mechanical task: the cheapest sufficient option at the lowest effort, worker activated by name', () => {
+    const a = route(provider, OPTIONS.mixed, 'Dispatch a worker to update 30 already specified fixture names using an exact mapping. There are no design choices, so every listed option is sufficient.');
+    return [listed(OPTIONS.mixed, a) && a.agent === 'beta' && a.model === 'beta-old-light' && a.effort === 'low' && a.worker_launch_prompt.startsWith(WORKER_LAUNCH), a];
   });
-  check('ordinary multi-change worker routes to codex gpt-6-sol medium', () => {
-    const a = route(provider, 'Dispatch a worker to add a small API endpoint, update validation and storage, and adjust the related tests. The interface is settled, but several implementation changes need local reasoning.');
-    return [a.agent === 'codex' && a.model === 'gpt-6-sol' && a.effort === 'medium', a];
+  check('equal options: prefers a provider other than its own (invented provider)', () => {
+    const a = route(provider, OPTIONS.twoEqual, 'Dispatch a worker to add a small API endpoint, update validation and storage, and adjust the related tests. The interface is settled.');
+    return [a.agent === 'gamma' && a.model === 'gamma-main', a];
   });
-  check('difficult reasoning raises effort on the same model with a justification', () => {
-    const a = route(provider, 'Dispatch a worker to decide a hard-to-reverse service boundary with ambiguous ownership and competing failure modes. No other provider or model was requested.');
-    return [a.agent === 'codex' && a.model === 'gpt-6-sol' && ['high', 'xhigh'].includes(a.effort)
-      && a.worker_launch_prompt.startsWith(WORKER_LAUNCH) && a.worker_launch_prompt.includes('Effort justification:'), a];
+  check('own provider is the only one available: uses it without complaint', () => {
+    const a = route(provider, OPTIONS.ownOnly, 'Dispatch a worker to add a small API endpoint, update validation and storage, and adjust the related tests. The interface is settled.');
+    return [listed(OPTIONS.ownOnly, a) && a.agent === 'alpha', a];
   });
-  for (const [circ, agent, model] of [
-    ['The user explicitly asks for agent=claude, model=opus for this worker.', 'claude', 'opus'],
-    ['gpt-6-sol is unavailable and agent=claude, model=opus is the available fallback.', 'claude', 'opus'],
-    ['gpt-6-sol lacks a required capability, which agent=claude, model=opus has.', 'claude', 'opus'],
-    ['The mob boss runs on Claude, but the PR-owning worker runs on Codex. Dispatch the mandated opposite-provider adversarial PR reviewer for that PR owner.', 'claude', null],
-    ['The mob boss runs on Codex, but this PR-owning worker exceptionally runs on Claude. Dispatch the mandated opposite-provider adversarial PR reviewer for that PR owner, normally gpt-6-sol.', 'codex', 'gpt-6-sol'],
-  ]) {
-    check(`provider/model exception only when allowed: ${circ.slice(0, 48)}`, () => {
-      const a = route(provider, `Dispatch one bounded worker. ${circ}`);
-      return [a.agent === agent && (model === null || a.model === model), a];
-    });
-  }
-  check('size, urgency and budget do not switch models', () => {
-    const a = route(provider, 'Dispatch a worker for a large, high-visibility but fully specified implementation. It is urgent and there is ample budget; no unusual capability is required.');
-    return [a.agent === 'codex' && a.model === 'gpt-6-sol', a];
+  check('hard reasoning: moves up a tier rather than maxing effort on the old light option, and justifies any effort above the middle level', () => {
+    const a = route(provider, OPTIONS.mixed, 'Dispatch a worker to decide a hard-to-reverse service boundary with ambiguous ownership and competing failure modes. The cheap older light option is tempting at maximum effort.');
+    const aboveMiddle = ['high', 'xhigh'].includes(a.effort);
+    return [listed(OPTIONS.mixed, a) && a.model !== 'beta-old-light'
+      && (!aboveMiddle || a.worker_launch_prompt.includes('Effort justification:')), a];
+  });
+  check('size, urgency and budget do not escalate the option', () => {
+    const a = route(provider, OPTIONS.mixed, 'Dispatch a worker for a large, high-visibility but fully specified implementation. It is urgent and there is ample budget; no unusual capability is required.');
+    return [listed(OPTIONS.mixed, a) && a.model !== 'alpha-frontier' && !['xhigh'].includes(a.effort), a];
+  });
+  check('user exclusion overrides selection', () => {
+    const a = route(provider, OPTIONS.twoEqual, 'The user\'s own instructions say: never delegate to gamma-main. Dispatch a worker to add a small API endpoint and its tests; the interface is settled.');
+    return [a.model === 'alpha-main', a];
+  });
+  check('PR reviewer runs on a provider different from the PR owner\'s', () => {
+    const a = route(provider, OPTIONS.mixed, 'Dispatch the mandated adversarial PR reviewer for a worker that owns a PR and runs on provider beta.');
+    return [listed(OPTIONS.mixed, a) && a.agent === 'alpha', a];
+  });
+  check('PR reviewer with no different provider available reports reduced independence', () => {
+    const a = route(provider, OPTIONS.ownOnly, 'Dispatch the mandated adversarial PR reviewer for a worker that owns a PR and runs on provider alpha. Both listed options are suitable for the review.');
+    return [listed(OPTIONS.ownOnly, a) && a.agent === 'alpha' && a.model === 'alpha-frontier' && a.independence_reduced === true, a];
+  });
+  check('worker with no different provider installed spawns a strongest same-provider reviewer and tells the boss', () => {
+    const a = structured(provider, WORKER,
+      `I run on provider alpha and own a PR that needs its adversarial review. These are the only options the spawn-session schema lists:\n${OPTIONS.ownOnly.join('\n')}\nBoth are suitable for the review. The review capability asks for a provider different from mine, and none is installed. What do I do?`,
+      { type: 'object', properties: { reviewer_agent: str, reviewer_model: str, would_stall_without_review: bool, tells_boss_review_is_less_independent: bool }, required: ['reviewer_agent', 'reviewer_model', 'would_stall_without_review', 'tells_boss_review_is_less_independent'] });
+    return [a.reviewer_agent === 'alpha' && a.reviewer_model === 'alpha-frontier' && a.would_stall_without_review === false && a.tells_boss_review_is_less_independent === true, a];
   });
   check('prunes workers only after terminal conditions', () => {
     const a = structured(provider, BOSS,
