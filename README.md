@@ -8,7 +8,7 @@ Personas are grouped. The first group is **Mob**.
 
 | Skill | Role |
 | --- | --- |
-| `mob-boss` | Owns the user dialogue, decomposition, dispatch and final synthesis. Launches each worker with a self-contained brief, picks its model and effort, waits for completion mail instead of polling, and archives a worker once its acceptance criteria are met and every PR it owned is closed. |
+| `mob-boss` | Owns the user dialogue, decomposition, dispatch and final synthesis. Launches each worker with a self-contained brief, chooses each worker's provider, model and effort from what is installed (cheapest sufficient option, no preference for its own provider, user exclusions honoured), waits for completion mail instead of polling, and archives a worker once its acceptance criteria are met and every PR it owned is closed. |
 | `mob-worker` | Owns one bounded deliverable. Reports once per completed work or review cycle, never delegates the work further, and for a PR it owns keeps one opposite-provider reviewer for review, changes and re-review until clean. |
 
 Both skills are opt-in. Their descriptions only match an explicit request to start a session in the role, so an ordinary session, including a multi-step coding task, stays ordinary. Neither is an always-on instruction.
@@ -44,7 +44,6 @@ The extension is enabled by default.
 - `skills/mob-boss/SKILL.md`, `skills/mob-worker/SKILL.md`: the skills.
 - `test/`: `npm test` checks the manifest, static declaration, skill structure and that the skills stay opt-in. No model calls.
 - `scripts/live-checks.mjs`: real-provider smoke checks that bill model calls and are never run by `npm test`.
-- `scripts/compare-baseline.mjs`: confirms a skill differs from a baseline copy only by the approved role rename.
 
 ## Live checks
 
@@ -53,4 +52,4 @@ node scripts/live-checks.mjs discovery [--provider claude|codex|both] [--runs N]
 node scripts/live-checks.mjs scenarios [--provider claude|codex|both]
 ```
 
-`discovery` loads the skills the way Agent Wrangler does (a `--plugin-dir` per skill for Claude, the injected catalog for Codex), with user-level skills excluded. It checks that an explicit named request and a generic explicit orchestration-role request activate the right skill, that a simple task and a multi-step coding task activate neither, and that a boss-written launch prompt activates the worker in a fresh session. `scenarios` force-loads each policy and checks its behavioural rules: waiting for notifications, model and effort routing, pruning, reviewer reuse and re-review. Claude calls get only the Skill tool and no MCP servers. Codex scenario calls have no shell; Codex discovery calls keep a shell so the skill file can be read, under a read-only sandbox in an empty directory, and activation counts only after a successful read of the exact shipped file. Nothing is dispatched or opened. A handful of runs is a smoke check, not evidence of equivalence.
+`discovery` loads the skills the way Agent Wrangler does (a `--plugin-dir` per skill for Claude, the injected catalog for Codex), with user-level skills excluded. It checks that an explicit named request and a generic explicit orchestration-role request activate the right skill, that a simple task and a multi-step coding task activate neither, and that a boss-written launch prompt activates the worker in a fresh session. `scenarios` force-loads each policy and checks its behavioural rules: waiting for notifications, model and effort selection against invented provider and model lists, pruning, reviewer reuse and re-review. Claude calls get only the Skill tool and no MCP servers. Codex scenario calls have no shell; Codex discovery calls keep a shell so the skill file can be read, under a read-only sandbox in an empty directory, and activation counts only after a successful read of the exact shipped file. Nothing is dispatched or opened. A handful of runs is a smoke check, not evidence of equivalence.

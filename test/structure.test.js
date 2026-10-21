@@ -62,6 +62,13 @@ test('skills stay opt-in and dispatch activates the worker explicitly', () => {
   assert.doesNotMatch(boss + worker, /\bmob lead\b|mob-lead|\bthe lead\b/i);
 });
 
+test('skills name no provider or model', () => {
+  for (const name of manifest.skills) {
+    const text = fs.readFileSync(path.join(root, 'skills', name, 'SKILL.md'), 'utf8');
+    assert.doesNotMatch(text, /claude|codex|gpt|openai|anthropic|opus|sonnet|haiku|fable|terra|astra|luna|\bsol\b/i, name);
+  }
+});
+
 test('no sensitive or environment-specific content ships', () => {
   const files = [];
   (function walk(dir) {

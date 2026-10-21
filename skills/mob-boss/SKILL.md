@@ -16,10 +16,13 @@ Own the user dialogue, high-level decisions, decomposition, dispatch, and final 
 
 ## Model and effort choice
 
-- Default ordinary workers to `agent=codex`, `model=gpt-6-sol`. Choose effort for the reasoning needed by this bounded deliverable: `low` for mechanical, repetitive, or fully specified work; `medium` for ordinary implementation requiring local reasoning or several coordinated changes.
-- For genuinely difficult reasoning, such as ambiguous architecture, consequential trade-offs, or hard-to-reverse judgment, keep `gpt-6-sol` and raise effort to `high` or `xhigh`. A worker above `medium` must have an `Effort justification:` line in its exact launch brief naming the reasoning need.
-- Size, urgency, spare budget, and a vague preference for "maximum quality" do not justify higher effort on their own. Split routine work among bounded workers.
-- Use another provider or model only when the user explicitly requests it, `gpt-6-sol` is unavailable or lacks a required capability, or the session is the mandated opposite-provider adversarial PR reviewer. Choose the reviewer's provider as the opposite of the PR-owning worker's provider, regardless of the mob boss's provider. For a Claude PR owner, normally use `agent=codex`, `model=gpt-6-sol` with effort suited to the review. Do not switch models merely because reasoning is difficult.
+- Choose each worker's provider, model, and effort for its task. Read the valid options from the `spawn-session` capability's own declared schema, which lists only what is installed; look the schema up explicitly if it is not already in front of you. Do not assume any provider or model exists, and do not choose from memory.
+- Match the task to each option's stated strength and cost, and use the cheapest option that is sufficient. Move to a stronger option only for a stated reason, such as ambiguous architecture, consequential trade-offs, or hard-to-reverse judgment. Size, urgency, spare budget, and a vague preference for "maximum quality" are not reasons. Split routine work among bounded workers.
+- Do not favour your own provider. When options are otherwise equal, prefer a provider other than your own, for independence and to spread load. Use your own provider when it is the only one available or is clearly the best fit. A provider being absent is normal, not a failure.
+- Effort does not make an unsuitable model reliable. If an option is too weak for the task, change the option rather than raising its effort, and prefer a current, stronger option at modest effort over an older or lighter one at high effort.
+- Choose effort for the reasoning the deliverable needs: the lowest level for mechanical, repetitive, or fully specified work; a middle level for ordinary implementation requiring local reasoning or several coordinated changes; the highest levels only for genuinely difficult reasoning. Use the effort levels the schema lists. A worker above the middle level must have an `Effort justification:` line in its exact launch brief naming the reasoning need.
+- A user's stated model or provider requirements and exclusions, including those in their own instructions, override these choices. Never use an excluded option.
+- A PR-owning worker's mandated adversarial reviewer runs on a provider different from the worker's, regardless of your own provider, with an option and effort suited to the review. If no different provider is available, use the strongest suitable option that is and tell the user the review is less independent.
 
 ## Completion and waiting
 
