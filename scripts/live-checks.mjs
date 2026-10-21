@@ -183,7 +183,7 @@ function scenarios(provider) {
   });
   check('mechanical task: the cheapest sufficient option at the lowest effort, worker activated by name', () => {
     const a = route(provider, OPTIONS.mixed, 'Dispatch a worker to update 30 already specified fixture names using an exact mapping. There are no design choices, so every listed option is sufficient.');
-    return [a.model === 'beta-old-light' && a.effort === 'low' && a.worker_launch_prompt.startsWith(WORKER_LAUNCH), a];
+    return [listed(OPTIONS.mixed, a) && a.agent === 'beta' && a.model === 'beta-old-light' && a.effort === 'low' && a.worker_launch_prompt.startsWith(WORKER_LAUNCH), a];
   });
   check('equal options: prefers a provider other than its own (invented provider)', () => {
     const a = route(provider, OPTIONS.twoEqual, 'Dispatch a worker to add a small API endpoint, update validation and storage, and adjust the related tests. The interface is settled.');
@@ -212,7 +212,7 @@ function scenarios(provider) {
   });
   check('PR reviewer with no different provider available reports reduced independence', () => {
     const a = route(provider, OPTIONS.ownOnly, 'Dispatch the mandated adversarial PR reviewer for a worker that owns a PR and runs on provider alpha. Both listed options are suitable for the review.');
-    return [a.model === 'alpha-frontier' && a.independence_reduced === true, a];
+    return [listed(OPTIONS.ownOnly, a) && a.agent === 'alpha' && a.model === 'alpha-frontier' && a.independence_reduced === true, a];
   });
   check('worker with no different provider installed spawns a strongest same-provider reviewer and tells the boss', () => {
     const a = structured(provider, WORKER,
