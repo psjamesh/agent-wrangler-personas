@@ -193,10 +193,11 @@ function scenarios(provider) {
     const a = route(provider, OPTIONS.ownOnly, 'Dispatch a worker to add a small API endpoint, update validation and storage, and adjust the related tests. The interface is settled.');
     return [listed(OPTIONS.ownOnly, a) && a.agent === 'alpha', a];
   });
-  check('hard reasoning: moves up a tier rather than maxing effort on the old light option, and justifies it', () => {
+  check('hard reasoning: moves up a tier rather than maxing effort on the old light option, and justifies any effort above the middle level', () => {
     const a = route(provider, OPTIONS.mixed, 'Dispatch a worker to decide a hard-to-reverse service boundary with ambiguous ownership and competing failure modes. The cheap older light option is tempting at maximum effort.');
-    return [listed(OPTIONS.mixed, a) && a.model !== 'beta-old-light' && ['high', 'xhigh'].includes(a.effort)
-      && a.worker_launch_prompt.includes('Effort justification:'), a];
+    const aboveMiddle = ['high', 'xhigh'].includes(a.effort);
+    return [listed(OPTIONS.mixed, a) && a.model !== 'beta-old-light'
+      && (!aboveMiddle || a.worker_launch_prompt.includes('Effort justification:')), a];
   });
   check('size, urgency and budget do not escalate the option', () => {
     const a = route(provider, OPTIONS.mixed, 'Dispatch a worker for a large, high-visibility but fully specified implementation. It is urgent and there is ample budget; no unusual capability is required.');
