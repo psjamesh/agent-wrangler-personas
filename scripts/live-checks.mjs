@@ -5,14 +5,17 @@
 //   node scripts/live-checks.mjs baseline [--runs N]   (old global skills, Claude only)
 //   node scripts/live-checks.mjs scenarios [--provider claude|codex|both]
 //
-// Every call is tool-less (Claude gets only the Skill tool; Codex runs read-only in an empty
-// directory), so nothing is dispatched, committed or opened. A few runs are a smoke check, not
+// Claude calls get only the Skill tool and no MCP servers; Codex scenario calls have no shell. Codex
+// discovery calls keep a shell so the skill file can be read, under a read-only sandbox in an empty
+// directory, so nothing is dispatched, committed or opened. A few runs are a smoke check, not
 // statistical evidence.
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { claudeArgs, codexArgs, parseClaude, parseCodex } from './launch.mjs';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const BOSS = path.join(root, 'skills/mob-boss');
@@ -60,53 +63,18 @@ function run(cmd, argv, env = {}) {
 // Claude with the extension skills loaded the way Agent Wrangler loads them (one --plugin-dir
 // each) and user-level skills excluded, so the old global copies cannot answer.
 function claudeSession(prompt, { baseline = false } = {}) {
-  const skillArgs = baseline
-    ? []
-    : ['--setting-sources', 'project', '--plugin-dir', BOSS, '--plugin-dir', WORKER];
-  const out = run('claude', [
-    '-p', prompt, '--model', CLAUDE_MODEL, '--effort', 'low',
-    ...skillArgs,
-    '--tools', 'Skill', '--no-session-persistence',
-    '--output-format', 'stream-json', '--verbose',
-  ]);
-  const skills = [];
-  let text = '';
-  for (const line of out.split('\n').filter(Boolean)) {
-    const ev = JSON.parse(line);
-    if (ev.type === 'assistant') {
-      for (const block of ev.message.content) {
-        if (block.type === 'tool_use' && block.name === 'Skill') skills.push(block.input.skill);
-        if (block.type === 'text') text = block.text;
-      }
-    }
-    if (ev.type === 'result') text = ev.result || text;
-  }
-  return { skills, text };
+  return parseClaude(run('claude', claudeArgs({ prompt, model: CLAUDE_MODEL, bossDir: BOSS, workerDir: WORKER, baseline })));
 }
 
 // Codex with the same catalog Agent Wrangler injects into developer_instructions. HOME is empty
 // so ~/.agents/skills cannot supply the old copies; CODEX_HOME keeps authentication.
 function codexSession(prompt) {
-  const out = run('codex', [
-    'exec', '--json', '--skip-git-repo-check', '--ephemeral', '--ignore-user-config', '-s', 'read-only',
-    '-m', CODEX_MODEL, '-c', 'model_reasoning_effort=low',
-    '-c', `developer_instructions=${JSON.stringify(codexCatalog())}`, prompt,
-  ], { HOME: emptyHome, CODEX_HOME: path.join(os.homedir(), '.codex') });
-  const skills = [];
-  let text = '';
-  for (const line of out.split('\n').filter(Boolean)) {
-    let ev;
-    try { ev = JSON.parse(line); } catch { continue; }
-    const item = ev.item;
-    if (ev.type === 'item.completed' && item) {
-      if (item.type === 'command_execution') {
-        const m = item.command.match(/skills\/(mob-boss|mob-worker)\/SKILL\.md/);
-        if (m) skills.push(m[1]);
-      }
-      if (item.type === 'agent_message') text = item.text;
-    }
-  }
-  return { skills, text };
+  const out = run('codex', codexArgs({ prompt, model: CODEX_MODEL, developerInstructions: codexCatalog(), discovery: true }),
+    { HOME: emptyHome, CODEX_HOME: path.join(os.homedir(), '.codex') });
+  return parseCodex(out, {
+    'mob-boss': path.join(BOSS, 'SKILL.md'),
+    'mob-worker': path.join(WORKER, 'SKILL.md'),
+  });
 }
 
 const session = { claude: claudeSession, codex: codexSession };
@@ -152,11 +120,7 @@ function structured(provider, skillDir, question, schema) {
     + 'situation; answer the structured question you are asked about what you would do.\n\n'
     + `--- POLICY ---\n${policy}\n--- END POLICY ---`;
   if (provider === 'claude') {
-    const out = run('claude', [
-      '-p', question, '--model', CLAUDE_MODEL, '--effort', 'low', '--setting-sources', 'project',
-      '--append-system-prompt', system, '--tools', '', '--no-session-persistence',
-      '--output-format', 'json', '--json-schema', JSON.stringify(schema),
-    ]);
+    const out = run('claude', claudeArgs({ prompt: question, model: CLAUDE_MODEL, system, structured: schema }));
     return JSON.parse(out).structured_output;
   }
   const schemaFile = path.join(scratch, 'schema.json');
@@ -164,14 +128,10 @@ function structured(provider, skillDir, question, schema) {
     ? { ...s, additionalProperties: false, properties: Object.fromEntries(Object.entries(s.properties).map(([k, v]) => [k, strict(v)])) }
     : s);
   fs.writeFileSync(schemaFile, JSON.stringify(strict(schema)));
-  const last = path.join(scratch, 'last.txt');
-  run('codex', [
-    'exec', '--skip-git-repo-check', '--ephemeral', '--ignore-user-config', '-s', 'read-only',
-    '-m', CODEX_MODEL, '-c', 'model_reasoning_effort=low',
-    '-c', `developer_instructions=${JSON.stringify(system)}`,
-    '--output-schema', schemaFile, '-o', last, question,
-  ], { HOME: emptyHome, CODEX_HOME: path.join(os.homedir(), '.codex') });
-  return JSON.parse(fs.readFileSync(last, 'utf8'));
+  const lastFile = path.join(scratch, 'last.txt');
+  run('codex', codexArgs({ prompt: question, model: CODEX_MODEL, developerInstructions: system, discovery: false, schemaFile, lastFile }),
+    { HOME: emptyHome, CODEX_HOME: path.join(os.homedir(), '.codex') });
+  return JSON.parse(fs.readFileSync(lastFile, 'utf8'));
 }
 
 const bool = { type: 'boolean' };
