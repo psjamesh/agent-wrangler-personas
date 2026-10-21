@@ -1,0 +1,23 @@
+{
+  "name": "agent-wrangler-personas",
+  "version": "0.1.0",
+  "description": "Agent Wrangler extension shipping opt-in operational personas, starting with the Mob group: `mob-boss` and `mob-worker`.",
+  "type": "module",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/psjamesh/agent-wrangler-personas.git"
+  },
+  "wranglerExtension": {
+    "id": "personas",
+    "label": "Personas",
+    "description": "Adds opt-in operational personas for Agent Wrangler sessions. The Mob group ships `mob-boss`, which decomposes and dispatches work, and `mob-worker`, which owns one bounded deliverable. Ordinary sessions are unaffected until a persona is explicitly requested.",
+    "author": "psjamesh",
+    "homepage": "https://github.com/psjamesh/agent-wrangler-personas",
+    "requires": []
+  }
+}
