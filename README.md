@@ -1,6 +1,6 @@
 # agent-wrangler-personas
 
-An [Agent Wrangler](https://github.com/PortSwigger/agent-wrangler) extension that ships opt-in operational personas for sessions that collaborate. A persona packages a role and how it works with others: what it owns, how it reports, how it waits. It is not a personality preset.
+An Agent Wrangler extension that ships opt-in operational personas for sessions that collaborate. A persona packages a role and how it works with others: what it owns, how it reports, how it waits. It is not a personality preset.
 
 Personas are grouped. The first group is **Mob**.
 
