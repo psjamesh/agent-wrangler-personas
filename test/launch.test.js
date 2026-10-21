@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import { claudeArgs, codexArgs, parseCodex, parseClaude } from '../scripts/launch.mjs';
 
 const FILE = '/ext/skills/mob-worker/SKILL.md';
-const BODY = '---\nname: mob-worker\ndescription: x\n---\n# Mob worker';
+const TAIL = 'Repeat this loop until the review is clean.';
+const BODY = `---\nname: mob-worker\ndescription: x\n---\n# Mob worker\n${TAIL}`;
 const cmd = (command, extra = {}) => JSON.stringify({
   type: 'item.completed',
   item: { type: 'command_execution', command, status: 'completed', exit_code: 0, aggregated_output: BODY, ...extra },
 });
-const parse = (...lines) => parseCodex(lines.join('\n'), { 'mob-worker': FILE }).skills;
+const parse = (...lines) => parseCodex(lines.join('\n'), { 'mob-worker': { file: FILE, tail: TAIL } }).skills;
 
 test('claude launches carry only the Skill tool (or none) and no MCP servers', () => {
   const base = { prompt: 'p', model: 'm', bossDir: '/b', workerDir: '/w' };
@@ -41,6 +42,7 @@ test('codex activation needs a successful read of the exact shipped file', () =>
   assert.deepEqual(parse(cmd(`echo ${FILE}`)), []);
   assert.deepEqual(parse(cmd('cat /home/u/.agents/skills/mob-worker/SKILL.md')), []);
   assert.deepEqual(parse(cmd(`cat ${FILE}`, { aggregated_output: 'unrelated' })), []);
+  assert.deepEqual(parse(cmd(`head -n 3 ${FILE}`, { aggregated_output: '---\nname: mob-worker\ndescription: x' })), []);
   assert.deepEqual(parse('not json'), []);
 });
 

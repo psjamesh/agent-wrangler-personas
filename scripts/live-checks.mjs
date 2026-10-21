@@ -71,10 +71,12 @@ function claudeSession(prompt, { baseline = false } = {}) {
 function codexSession(prompt) {
   const out = run('codex', codexArgs({ prompt, model: CODEX_MODEL, developerInstructions: codexCatalog(), discovery: true }),
     { HOME: emptyHome, CODEX_HOME: path.join(os.homedir(), '.codex') });
-  return parseCodex(out, {
-    'mob-boss': path.join(BOSS, 'SKILL.md'),
-    'mob-worker': path.join(WORKER, 'SKILL.md'),
-  });
+  const shipped = (dir) => {
+    const file = path.join(dir, 'SKILL.md');
+    const lines = fs.readFileSync(file, 'utf8').trimEnd().split('\n');
+    return { file, tail: lines[lines.length - 1] };
+  };
+  return parseCodex(out, { 'mob-boss': shipped(BOSS), 'mob-worker': shipped(WORKER) });
 }
 
 const session = { claude: claudeSession, codex: codexSession };

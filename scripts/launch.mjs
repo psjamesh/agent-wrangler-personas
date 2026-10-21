@@ -41,7 +41,8 @@ export function parseClaude(out) {
 }
 
 // A skill counts as activated only by a successful read of its exact shipped file whose output
-// carries the matching frontmatter name.
+// carries its frontmatter name and its final line, so a frontmatter-only peek does not count.
+// `skillFiles` maps name to { file, tail }.
 export function parseCodex(out, skillFiles) {
   const skills = [];
   let text = '';
@@ -52,9 +53,10 @@ export function parseCodex(out, skillFiles) {
     if (ev.type !== 'item.completed' || !item) continue;
     if (item.type === 'agent_message') text = item.text;
     if (item.type !== 'command_execution' || item.exit_code !== 0 || item.status !== 'completed') continue;
-    for (const [name, file] of Object.entries(skillFiles)) {
+    for (const [name, { file, tail }] of Object.entries(skillFiles)) {
       const reads = item.command.includes(file) && /\b(cat|sed|head|nl|less)\b/.test(item.command);
-      if (reads && (item.aggregated_output || '').includes(`name: ${name}`)) skills.push(name);
+      const output = item.aggregated_output || '';
+      if (reads && output.includes(`name: ${name}`) && output.includes(tail)) skills.push(name);
     }
   }
   return { skills, text };
