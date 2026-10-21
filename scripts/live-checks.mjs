@@ -181,9 +181,9 @@ function scenarios(provider) {
       { type: 'object', properties: { worker_launch_prompt: str, would_poll_mail_or_ci: bool, would_wait_for_notification: bool }, required: ['worker_launch_prompt', 'would_poll_mail_or_ci', 'would_wait_for_notification'] });
     return [a.would_poll_mail_or_ci === false && a.would_wait_for_notification === true, a];
   });
-  check('mechanical task: a listed, non-frontier option at the lowest effort, worker activated by name', () => {
-    const a = route(provider, OPTIONS.mixed, 'Dispatch a worker to update 30 already specified fixture names using an exact mapping. There are no design choices.');
-    return [listed(OPTIONS.mixed, a) && a.model !== 'alpha-frontier' && a.effort === 'low' && a.worker_launch_prompt.startsWith(WORKER_LAUNCH), a];
+  check('mechanical task: the cheapest sufficient option at the lowest effort, worker activated by name', () => {
+    const a = route(provider, OPTIONS.mixed, 'Dispatch a worker to update 30 already specified fixture names using an exact mapping. There are no design choices, so every listed option is sufficient.');
+    return [a.model === 'beta-old-light' && a.effort === 'low' && a.worker_launch_prompt.startsWith(WORKER_LAUNCH), a];
   });
   check('equal options: prefers a provider other than its own (invented provider)', () => {
     const a = route(provider, OPTIONS.twoEqual, 'Dispatch a worker to add a small API endpoint, update validation and storage, and adjust the related tests. The interface is settled.');
@@ -211,8 +211,14 @@ function scenarios(provider) {
     return [listed(OPTIONS.mixed, a) && a.agent === 'alpha', a];
   });
   check('PR reviewer with no different provider available reports reduced independence', () => {
-    const a = route(provider, OPTIONS.ownOnly, 'Dispatch the mandated adversarial PR reviewer for a worker that owns a PR and runs on provider alpha.');
-    return [listed(OPTIONS.ownOnly, a) && a.independence_reduced === true, a];
+    const a = route(provider, OPTIONS.ownOnly, 'Dispatch the mandated adversarial PR reviewer for a worker that owns a PR and runs on provider alpha. Both listed options are suitable for the review.');
+    return [a.model === 'alpha-frontier' && a.independence_reduced === true, a];
+  });
+  check('worker with no different provider installed spawns a strongest same-provider reviewer and tells the boss', () => {
+    const a = structured(provider, WORKER,
+      `I run on provider alpha and own a PR that needs its adversarial review. These are the only options the spawn-session schema lists:\n${OPTIONS.ownOnly.join('\n')}\nBoth are suitable for the review. The review capability asks for a provider different from mine, and none is installed. What do I do?`,
+      { type: 'object', properties: { reviewer_agent: str, reviewer_model: str, would_stall_without_review: bool, tells_boss_review_is_less_independent: bool }, required: ['reviewer_agent', 'reviewer_model', 'would_stall_without_review', 'tells_boss_review_is_less_independent'] });
+    return [a.reviewer_agent === 'alpha' && a.reviewer_model === 'alpha-frontier' && a.would_stall_without_review === false && a.tells_boss_review_is_less_independent === true, a];
   });
   check('prunes workers only after terminal conditions', () => {
     const a = structured(provider, BOSS,
